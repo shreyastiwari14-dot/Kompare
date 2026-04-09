@@ -9,6 +9,7 @@ export interface StorePrice {
   logoColor: string;
   isQuickCommerce?: boolean;
   deliveryTime?: string;
+  url?: string;   // direct link to this product on the store
 }
 
 export interface PriceHistoryPoint {

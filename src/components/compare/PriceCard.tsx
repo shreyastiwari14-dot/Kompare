@@ -126,15 +126,25 @@ export default function PriceCard({ store, isLowest, index }: PriceCardProps) {
         {/* Buy Button */}
         <div className="mt-1 flex">
           {isLowest ? (
-            <button className="w-full px-4 py-2.5 rounded-lg bg-accent text-accent-foreground font-semibold text-sm transition-all hover:bg-accent/90 active:scale-95 flex items-center justify-center gap-2 group">
+            <a
+              href={store.url || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full px-4 py-2.5 rounded-lg bg-accent text-accent-foreground font-semibold text-sm transition-all hover:bg-accent/90 active:scale-95 flex items-center justify-center gap-2 group"
+            >
               <span>Buy on {store.storeName}</span>
               <span className="transition-transform group-hover:translate-x-1">→</span>
-            </button>
+            </a>
           ) : (
-            <button className="ml-auto px-4 py-2 rounded-lg border border-border text-foreground/75 font-medium text-sm transition-all hover:bg-muted active:scale-95 flex items-center gap-1.5 group">
+            <a
+              href={store.url || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto px-4 py-2 rounded-lg border border-border text-foreground/75 font-medium text-sm transition-all hover:bg-muted active:scale-95 flex items-center gap-1.5 group"
+            >
               <span>Buy on {store.storeName}</span>
               <span className="transition-transform group-hover:translate-x-1">→</span>
-            </button>
+            </a>
           )}
         </div>
       </div>

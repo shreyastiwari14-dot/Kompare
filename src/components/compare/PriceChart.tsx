@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
 import { Product, PriceHistoryPoint } from "@/lib/mockData";
@@ -38,24 +39,32 @@ const TIME_PERIODS = [
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: Array<{
-    name: string;
-    value: number;
-    color: string;
-  }>;
+  payload?: Array<{ name: string; value: number; color: string }>;
   label?: string;
+  lowestEver: number | null;
 }
 
-function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, label, lowestEver }: CustomTooltipProps) {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
+      <div className="bg-card border border-border rounded-lg p-3 shadow-lg min-w-[160px]">
         <p className="text-xs text-muted-foreground mb-2">{label}</p>
-        {payload.map((entry, index) => (
-          <p key={index} style={{ color: entry.color }} className="text-sm font-semibold">
-            {entry.name}: ₹{formatPrice(entry.value)}
-          </p>
-        ))}
+        {payload.map((entry, index) => {
+          const pctAboveLow =
+            lowestEver && entry.value > lowestEver
+              ? Math.round(((entry.value - lowestEver) / lowestEver) * 100)
+              : null;
+          return (
+            <div key={index} className="flex items-center justify-between gap-3">
+              <p style={{ color: entry.color }} className="text-sm font-semibold">
+                {entry.name}: ₹{formatPrice(entry.value)}
+              </p>
+              {pctAboveLow !== null && (
+                <span className="text-xs text-red-400">+{pctAboveLow}%</span>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -63,14 +72,23 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 }
 
 export default function PriceChart({ product }: PriceChartProps) {
-  const [timePeriod, setTimePeriod] = useState(3); // 3M default
+  const [timePeriod, setTimePeriod] = useState(3);
 
-  // Filter data based on selected time period
   const filteredData = product.priceHistory.slice(-timePeriod);
 
   const storeNames = Object.keys(STORE_COLORS).filter((storeName) =>
     product.priceHistory.some((point) => storeName in point)
   );
+
+  // Compute the all-time lowest price across all stores and history points
+  const lowestEver: number | null = (() => {
+    const allPrices = product.priceHistory.flatMap((point) =>
+      storeNames
+        .map((s) => (point as Record<string, unknown>)[s] as number)
+        .filter((v) => typeof v === "number" && v > 0)
+    );
+    return allPrices.length ? Math.min(...allPrices) : null;
+  })();
 
   return (
     <motion.div
@@ -80,10 +98,13 @@ export default function PriceChart({ product }: PriceChartProps) {
       className="rounded-lg border border-border bg-card p-6"
     >
       <div className="mb-6">
-        <h3 className="text-lg font-bold mb-4">Price History</h3>
+        <h3 className="text-lg font-bold">Price History</h3>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Historical prices across all stores
+        </p>
 
         {/* Time Period Tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mt-4">
           {TIME_PERIODS.map((period) => (
             <motion.button
               key={period.months}
@@ -120,11 +141,25 @@ export default function PriceChart({ product }: PriceChartProps) {
               style={{ fontSize: "12px" }}
               tickFormatter={(value) => `₹${value / 1000}k`}
             />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              wrapperStyle={{ paddingTop: "20px" }}
-              iconType="line"
-            />
+            <Tooltip content={<CustomTooltip lowestEver={lowestEver} />} />
+            <Legend wrapperStyle={{ paddingTop: "20px" }} iconType="line" />
+
+            {/* Lowest-ever reference line */}
+            {lowestEver && (
+              <ReferenceLine
+                y={lowestEver}
+                stroke="#22c55e"
+                strokeDasharray="5 4"
+                strokeWidth={1.5}
+                label={{
+                  value: `Lowest ₹${Math.round(lowestEver / 1000)}k`,
+                  fill: "#22c55e",
+                  fontSize: 11,
+                  position: "insideTopRight",
+                }}
+              />
+            )}
+
             {storeNames.map((storeName) => (
               <Line
                 key={storeName}
@@ -141,17 +176,23 @@ export default function PriceChart({ product }: PriceChartProps) {
         </ResponsiveContainer>
       </div>
 
-      {/* Chart Legend Text */}
+      {/* Store color legend */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6 pt-4 border-t border-border">
         {storeNames.map((storeName) => (
           <div key={storeName} className="flex items-center gap-2">
             <div
-              className="w-3 h-3 rounded-full"
+              className="w-3 h-3 rounded-full flex-shrink-0"
               style={{ backgroundColor: STORE_COLORS[storeName] }}
             />
             <span className="text-xs text-muted-foreground">{storeName}</span>
           </div>
         ))}
+        {lowestEver && (
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-px border-t-2 border-dashed border-green-500 flex-shrink-0" />
+            <span className="text-xs text-green-500 dark:text-green-400">Lowest ever</span>
+          </div>
+        )}
       </div>
     </motion.div>
   );

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import Breadcrumb from "@/components/ui/Breadcrumb";
 
 interface Category {
   id: string;
@@ -111,6 +112,10 @@ export default function CategoriesPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-black px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
       <div className="max-w-6xl mx-auto">
+        <Breadcrumb
+          items={[{ label: "Home", href: "/" }, { label: "Categories" }]}
+          className="text-zinc-500 dark:text-zinc-400"
+        />
         {/* Header */}
         <div className="mb-12 text-center sm:text-left">
           <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">

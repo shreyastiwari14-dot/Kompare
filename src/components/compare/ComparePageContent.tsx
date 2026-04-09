@@ -10,6 +10,7 @@ import PriceCard from "@/components/compare/PriceCard";
 import QuickCommerceSection from "@/components/compare/QuickCommerceSection";
 import PriceChart from "@/components/compare/PriceChart";
 import AlertBox from "@/components/compare/AlertBox";
+import Breadcrumb from "@/components/ui/Breadcrumb";
 
 // ── Loading skeleton ─────────────────────────────────────────────────────────
 function PricingSkeleton() {
@@ -53,9 +54,24 @@ function PricingSkeleton() {
   );
 }
 
+// ── Extract display variant pills from product name ───────────────────────────
+function extractVariantPills(name: string): string[] {
+  const pills: string[] = [];
+  const storageMatch = name.match(/\b(\d+\s*(?:GB|TB))\b/gi);
+  if (storageMatch) pills.push(...storageMatch.map(s => s.replace(/\s+/, ' ').toUpperCase()));
+  const colorMatch = name.match(/\b(Black|White|Blue|Red|Green|Gold|Silver|Graphite|Midnight|Starlight|Titanium|Natural|Pink|Purple|Yellow|Violet)\b/gi);
+  if (colorMatch) pills.push(...colorMatch.map(c => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()));
+  return [...new Set(pills)].slice(0, 4);
+}
+
 // ── Real product header (for URL-scraped products) ───────────────────────────
-function RealProductHeader({ source, lowestPrice }: { source: ProductData; lowestPrice: number }) {
+function RealProductHeader({ source, lowestPrice, lowestStoreName }: {
+  source: ProductData;
+  lowestPrice: number;
+  lowestStoreName?: string;
+}) {
   const savings = source.mrp && source.mrp > lowestPrice ? source.mrp - lowestPrice : 0;
+  const variantPills = extractVariantPills(source.name);
 
   return (
     <motion.div
@@ -64,74 +80,90 @@ function RealProductHeader({ source, lowestPrice }: { source: ProductData; lowes
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="mb-10"
     >
-      <div className="flex flex-col md:flex-row gap-8 items-start">
-        {/* Product image or emoji placeholder */}
-        <div className="flex-shrink-0">
-          <motion.div
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-            className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-gradient-to-br from-muted to-muted/50 border border-border overflow-hidden flex items-center justify-center"
-          >
-            {source.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={source.image}
-                alt={source.name}
-                className="w-full h-full object-contain p-2"
-                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
-            ) : (
-              <span className="text-6xl">🛍️</span>
-            )}
-          </motion.div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8 items-start">
+        {/* Product image */}
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          className="w-full aspect-square max-w-[280px] rounded-2xl bg-gradient-to-br from-muted to-muted/50 border border-border overflow-hidden flex items-center justify-center"
+        >
+          {source.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={source.image}
+              alt={source.name}
+              className="w-full h-full object-contain p-4"
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          ) : (
+            <span className="text-7xl">🛍️</span>
+          )}
+        </motion.div>
 
         {/* Product info */}
-        <div className="flex-1">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="space-y-4"
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/30">
-              <span className="text-xs font-semibold text-accent">
-                {source.category ?? source.store}
-              </span>
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="space-y-4 pt-1"
+        >
+          {/* Store / category badge */}
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/30">
+            <span className="text-xs font-semibold text-accent">
+              {source.category ?? source.store}
+            </span>
+          </div>
+
+          {/* Title */}
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight leading-snug">
+            {source.name}
+          </h1>
+
+          {/* Rating */}
+          {source.rating && (
+            <div className="flex items-center gap-2">
+              <span className="text-yellow-400">★</span>
+              <span className="text-sm font-medium">{source.rating.toFixed(1)}</span>
             </div>
+          )}
 
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{source.name}</h1>
+          {/* Variant pills */}
+          {variantPills.length > 0 && (
+            <div className="flex items-center flex-wrap gap-2">
+              {variantPills.map(pill => (
+                <span
+                  key={pill}
+                  className="px-3 py-1 rounded-full border border-border bg-muted text-xs font-medium text-muted-foreground"
+                >
+                  {pill}
+                </span>
+              ))}
+            </div>
+          )}
 
-            {source.rating && (
-              <div className="flex items-center gap-2">
-                <span className="text-yellow-400">★</span>
-                <span className="text-sm font-medium">{source.rating.toFixed(1)}</span>
-              </div>
-            )}
-
-            {savings > 0 && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.4, delay: 0.2 }}
-                className="inline-block mt-4 px-4 py-3 rounded-lg bg-green-500/10 border border-green-500/30"
-              >
-                <p className="text-sm text-muted-foreground mb-1">Potential Savings</p>
-                <p className="text-xl font-bold text-green-400">
-                  Up to ₹{savings.toLocaleString("en-IN")} vs MRP
-                </p>
-              </motion.div>
-            )}
-
-            <div className="flex items-baseline gap-3 pt-2">
-              <span className="text-sm text-muted-foreground">Starting from:</span>
-              <span className="text-2xl md:text-3xl font-bold font-mono text-accent">
+          {/* Starting price + inline savings */}
+          <div className="pt-2 space-y-1">
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <span className="text-3xl md:text-4xl font-bold font-mono tabular-nums text-accent">
                 ₹{lowestPrice.toLocaleString("en-IN")}
               </span>
+              {source.mrp && source.mrp > lowestPrice && (
+                <span className="text-base text-muted-foreground line-through tabular-nums">
+                  ₹{source.mrp.toLocaleString("en-IN")}
+                </span>
+              )}
             </div>
-          </motion.div>
-        </div>
+            <p className="text-sm text-muted-foreground">
+              Best price{lowestStoreName ? ` on ${lowestStoreName}` : ""}
+              {savings > 0 && (
+                <span className="ml-2 text-green-500 dark:text-green-400 font-medium">
+                  · Save ₹{savings.toLocaleString("en-IN")} vs MRP
+                </span>
+              )}
+            </p>
+          </div>
+        </motion.div>
       </div>
     </motion.div>
   );
@@ -164,6 +196,10 @@ export default function ComparePageContent() {
   const q = searchParams.get("q") ?? "";
 
   const isUrl = q.startsWith("http://") || q.startsWith("https://");
+
+  // Sort order for store listings
+  type SortKey = "price" | "discount" | "delivery";
+  const [sortBy, setSortBy] = useState<SortKey>("price");
 
   // For URL mode: real scraped data
   const [apiSource, setApiSource] = useState<ProductData | null>(null);
@@ -243,9 +279,30 @@ export default function ComparePageContent() {
   }
 
   // ── URL mode: real data ─────────────────────────────────────────────────────
+  // ── Sort helper ───────────────────────────────────────────────────────────
+  function sortStores(stores: StorePrice[], key: SortKey): StorePrice[] {
+    return [...stores].sort((a, b) => {
+      if (key === "price") return a.price - b.price;
+      if (key === "discount") return (b.discount ?? 0) - (a.discount ?? 0);
+      if (key === "delivery") {
+        // prefer stores whose deliveryInfo mentions "min" or "today/tomorrow"
+        const score = (s: StorePrice) => {
+          const info = s.deliveryInfo.toLowerCase();
+          if (info.includes("min")) return 0;
+          if (info.includes("today") || info.includes("tomorrow")) return 1;
+          return 2;
+        };
+        return score(a) - score(b);
+      }
+      return 0;
+    });
+  }
+
   if (isUrl && apiSource) {
-    const regularStores = apiPrices.filter(s => !s.isQuickCommerce);
-    const quickStores = apiPrices.filter(s => s.isQuickCommerce);
+    const regularStoresRaw = apiPrices.filter(s => !s.isQuickCommerce);
+    const quickStoresRaw = apiPrices.filter(s => s.isQuickCommerce);
+    const regularStores = sortStores(regularStoresRaw, sortBy);
+    const quickStores = sortStores(quickStoresRaw, sortBy);
     const lowestRegular = regularStores.length
       ? Math.min(...regularStores.map(s => s.price))
       : 0;
@@ -255,6 +312,7 @@ export default function ComparePageContent() {
     const lowestOverall = apiPrices.length
       ? Math.min(...apiPrices.map(s => s.price))
       : 0;
+    const lowestStore = apiPrices.find(s => s.price === lowestOverall);
 
     // Build a mock Product for AlertBox and PriceChart (they need the full shape)
     const mockForChart = buildMockProduct(apiSource, apiPrices);
@@ -276,8 +334,21 @@ export default function ComparePageContent() {
             </div>
           )}
 
+          {/* Breadcrumb */}
+          <Breadcrumb
+            items={[
+              { label: "Home", href: "/" },
+              { label: "Compare", href: "/compare" },
+              { label: apiSource.name.length > 40 ? apiSource.name.slice(0, 40) + "…" : apiSource.name },
+            ]}
+          />
+
           {/* Real product header */}
-          <RealProductHeader source={apiSource} lowestPrice={lowestOverall} />
+          <RealProductHeader
+            source={apiSource}
+            lowestPrice={lowestOverall}
+            lowestStoreName={lowestStore?.storeName}
+          />
 
           {/* No prices found */}
           {apiPrices.length === 0 ? (
@@ -289,6 +360,24 @@ export default function ComparePageContent() {
             </div>
           ) : (
             <>
+              {/* Sort / filter pills */}
+              <div className="flex items-center gap-2 mb-6 flex-wrap">
+                <span className="text-sm text-muted-foreground mr-1">Sort:</span>
+                {(["price", "discount", "delivery"] as const).map(key => (
+                  <button
+                    key={key}
+                    onClick={() => setSortBy(key)}
+                    className={`px-3 py-1 rounded-full text-sm font-medium transition-all border ${
+                      sortBy === key
+                        ? "bg-accent text-accent-foreground border-accent"
+                        : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
+                    }`}
+                  >
+                    {key === "price" ? "Price ↑" : key === "discount" ? "Discount" : "Delivery"}
+                  </button>
+                ))}
+              </div>
+
               {/* Regular e-commerce stores */}
               {regularStores.length > 0 && (
                 <motion.div
@@ -321,15 +410,22 @@ export default function ComparePageContent() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.15 }}
-                  className="mt-12 pt-8 border-t border-border"
+                  className="mt-12"
                 >
-                  <div className="mb-6">
-                    <h2 className="flex items-center gap-2 text-xl font-bold mb-2">
+                  {/* Divider with centered label */}
+                  <div className="relative flex items-center mb-8">
+                    <div className="flex-1 border-t border-border" />
+                    <span className="mx-4 flex items-center gap-2 text-sm font-semibold text-muted-foreground whitespace-nowrap">
                       <span>⚡</span>
-                      <span>Quick Commerce — Delivered in minutes</span>
-                    </h2>
+                      <span>Faster Delivery Options</span>
+                    </span>
+                    <div className="flex-1 border-t border-border" />
+                  </div>
+
+                  <div className="mb-6">
+                    <h2 className="text-xl font-bold mb-1">Quick Commerce</h2>
                     <p className="text-sm text-muted-foreground">
-                      Get your product faster with quick delivery services
+                      Get your product delivered in minutes
                     </p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -388,6 +484,13 @@ export default function ComparePageContent() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <Breadcrumb
+          items={[
+            { label: "Home", href: "/" },
+            { label: "Compare", href: "/compare" },
+            { label: product.name.length > 40 ? product.name.slice(0, 40) + "…" : product.name },
+          ]}
+        />
         <ProductHeader product={product} />
 
         <motion.div

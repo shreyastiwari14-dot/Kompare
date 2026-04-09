@@ -14,10 +14,11 @@ export default function AlertBox({ product }: AlertBoxProps) {
   const [priceTarget, setPriceTarget] = useState(
     Math.floor(product.lowestPrice * 0.85)
   );
+  const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   const handleSetAlert = () => {
-    if (priceTarget > 0) {
+    if (priceTarget > 0 && email.trim()) {
       setIsSubmitted(true);
       setTimeout(() => setIsSubmitted(false), 3000);
     }
@@ -45,9 +46,9 @@ export default function AlertBox({ product }: AlertBoxProps) {
           </p>
         </div>
 
-        {/* Right Section: Input & Button */}
+        {/* Right Section: Inputs & Button */}
         <div className="flex flex-col sm:flex-row gap-3 md:flex-nowrap">
-          <div className="flex-1 md:flex-initial">
+          <div className="flex flex-col gap-2">
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">
                 ₹
@@ -61,7 +62,14 @@ export default function AlertBox({ product }: AlertBoxProps) {
                 min="0"
               />
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-lg bg-muted border border-border text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+              placeholder="your@email.com"
+            />
+            <p className="text-xs text-muted-foreground">
               Current: ₹{formatPrice(product.lowestPrice)}
             </p>
           </div>
@@ -117,7 +125,7 @@ export default function AlertBox({ product }: AlertBoxProps) {
               <Check className="w-3 h-3 text-green-400" />
             </div>
             <p className="text-sm text-green-400 font-medium">
-              Price alert set! We'll notify you when price drops below ₹{formatPrice(priceTarget)}
+              Alert set! We&apos;ll email <strong>{email}</strong> when price drops below ₹{formatPrice(priceTarget)}
             </p>
           </motion.div>
         )}

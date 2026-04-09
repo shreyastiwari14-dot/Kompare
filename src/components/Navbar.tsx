@@ -39,14 +39,14 @@ export default function Navbar() {
       className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b border-border"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link
             href="/"
             className="flex items-center gap-2 group"
           >
             <span className="text-2xl font-bold tracking-tight">kompare</span>
-            <span className="inline-block w-2.5 h-2.5 rounded-full bg-accent transition-transform group-hover:scale-125" />
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-accent animate-pulse transition-transform group-hover:scale-125" />
           </Link>
 
           {/* Desktop Navigation */}
@@ -77,6 +77,7 @@ export default function Navbar() {
 
           {/* Theme Toggle & Menu */}
           <div className="flex items-center gap-4">
+            <div className="hidden md:block h-5 w-px bg-border" />
             {mounted && (
               <button
                 onClick={toggleTheme}

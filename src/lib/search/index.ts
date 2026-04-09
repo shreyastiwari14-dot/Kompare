@@ -4,17 +4,27 @@ import { searchFlipkart } from './flipkartSearch';
 import { searchBlinkit } from './blinkitSearch';
 import { searchZepto } from './zeptoSearch';
 import { searchCroma } from './cromaSearch';
+import { searchReliance } from './relianceSearch';
+import { searchMyntra } from './myntraSearch';
+import { searchAjio } from './ajioSearch';
+import { searchBigbasket } from './bigbasketSearch';
 
-const SEARCH_TIMEOUT_MS = 8000;
+const SEARCH_TIMEOUT_MS = 10_000;
 
-type StoreKey = 'amazon' | 'flipkart' | 'blinkit' | 'zepto' | 'croma';
+export type StoreKey =
+  | 'amazon' | 'flipkart' | 'blinkit' | 'zepto' | 'croma'
+  | 'reliance' | 'myntra' | 'ajio' | 'bigbasket';
 
 const SEARCHERS: Record<StoreKey, (q: string) => Promise<ProductData[]>> = {
-  amazon: searchAmazon,
+  amazon:   searchAmazon,
   flipkart: searchFlipkart,
-  blinkit: searchBlinkit,
-  zepto: searchZepto,
-  croma: searchCroma,
+  blinkit:  searchBlinkit,
+  zepto:    searchZepto,
+  croma:    searchCroma,
+  reliance: searchReliance,
+  myntra:   searchMyntra,
+  ajio:     searchAjio,
+  bigbasket: searchBigbasket,
 };
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -30,6 +40,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 /**
  * Search all stores in parallel. Skip stores listed in `excludeStores`.
  * Never throws — returns all results that came back within the timeout.
+ * Logs each store's outcome for debugging.
  */
 export async function searchAllStores(
   productName: string,
@@ -55,9 +66,10 @@ export async function searchAllStores(
   const all: ProductData[] = [];
   settled.forEach((result, i) => {
     if (result.status === 'fulfilled') {
+      console.log(`[searchAllStores] ${activeStores[i]}: ${result.value.length} results`);
       all.push(...result.value);
     } else {
-      console.warn(`[searchAllStores] ${activeStores[i]} failed:`, result.reason);
+      console.warn(`[searchAllStores] ${activeStores[i]} failed:`, result.reason?.message ?? result.reason);
     }
   });
 

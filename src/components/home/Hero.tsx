@@ -24,11 +24,25 @@ export default function Hero() {
   const router = useRouter();
   const [query, setQuery] = useState("");
 
+  const looksLikeUrl = (s: string) =>
+    s.startsWith('http://') ||
+    s.startsWith('https://') ||
+    /^(www\.)?(amazon|flipkart|croma|myntra|ajio|blinkit|zepto|reliancedigital|bigbasket|tatacliq|jiomart|nykaa|vijaysales)\.(in|com)/i.test(s.trim());
+
+  const navigate = (value: string) => {
+    const q = value.trim();
+    if (!q) return;
+    if (looksLikeUrl(q)) {
+      const fullUrl = q.startsWith('http') ? q : `https://${q}`;
+      router.push(`/compare?url=${encodeURIComponent(fullUrl)}`);
+    } else {
+      router.push(`/compare?q=${encodeURIComponent(q)}`);
+    }
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim()) {
-      router.push(`/compare?q=${encodeURIComponent(query)}`);
-    }
+    navigate(query);
   };
 
   return (
@@ -116,7 +130,7 @@ export default function Hero() {
                 key={hint}
                 onClick={() => {
                   setQuery(hint);
-                  router.push(`/compare?q=${encodeURIComponent(hint)}`);
+                  navigate(hint);
                 }}
                 className="px-4 py-2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors duration-200 text-sm font-medium"
               >

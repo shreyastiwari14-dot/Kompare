@@ -10,6 +10,42 @@ export function parseProductLink(url: string): ParsedLink {
     return { store: 'unknown', productId: '' };
   }
 
+  // ── Reliance Digital ──────────────────────────────────────────────────────
+  if (/reliancedigital\.in/i.test(normalized)) {
+    const match = normalized.match(/\/([a-zA-Z0-9_-]+)\/p\/(\d+)/i);
+    return { store: 'reliance', productId: match?.[2] ?? '' };
+  }
+
+  // ── BigBasket ─────────────────────────────────────────────────────────────
+  if (/bigbasket\.com/i.test(normalized)) {
+    const match = normalized.match(/\/pd\/(\d+)/i) || normalized.match(/p=(\d+)/i);
+    return { store: 'bigbasket', productId: match?.[1] ?? '' };
+  }
+
+  // ── Tata CLiQ ─────────────────────────────────────────────────────────────
+  if (/tatacliq\.com/i.test(normalized)) {
+    const match = normalized.match(/\/p-([a-zA-Z0-9]+)/i);
+    return { store: 'tatacliq', productId: match?.[1] ?? '' };
+  }
+
+  // ── JioMart ───────────────────────────────────────────────────────────────
+  if (/jiomart\.com/i.test(normalized)) {
+    const match = normalized.match(/\/p\/([^/?]+)/i);
+    return { store: 'jiomart', productId: match?.[1] ?? '' };
+  }
+
+  // ── Nykaa ─────────────────────────────────────────────────────────────────
+  if (/nykaa\.com/i.test(normalized)) {
+    const match = normalized.match(/\/p\/([^/?]+)/i);
+    return { store: 'nykaa', productId: match?.[1] ?? '' };
+  }
+
+  // ── Vijay Sales ───────────────────────────────────────────────────────────
+  if (/vijaysales\.com/i.test(normalized)) {
+    const match = normalized.match(/product\/([^/?]+)/i);
+    return { store: 'vijaysales', productId: match?.[1] ?? '' };
+  }
+
   // ── Amazon ──────────────────────────────────────────────────────────────
   // amazon.in/dp/ASIN, amazon.in/gp/product/ASIN, short amzn.in links
   if (/amazon\.(in|com)/i.test(normalized) || /amzn\.in/i.test(normalized)) {

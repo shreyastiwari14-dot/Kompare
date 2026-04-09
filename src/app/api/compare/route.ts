@@ -18,8 +18,12 @@ const STORE_META: Record<string, {
   Amazon:   { logoInitials: 'AM', logoColor: 'from-orange-400 to-orange-600', isQuickCommerce: false, deliveryInfo: 'Free delivery in 2-3 days' },
   Flipkart: { logoInitials: 'FK', logoColor: 'from-blue-400 to-blue-600',    isQuickCommerce: false, deliveryInfo: 'Free delivery by tomorrow' },
   Croma:    { logoInitials: 'CR', logoColor: 'from-green-400 to-green-600',   isQuickCommerce: false, deliveryInfo: 'Free delivery in 3-4 days' },
-  Blinkit:  { logoInitials: 'BK', logoColor: 'from-yellow-300 to-yellow-500', isQuickCommerce: true,  deliveryInfo: 'Delivered in 10 min', deliveryTime: '10 min' },
-  Zepto:    { logoInitials: 'ZP', logoColor: 'from-cyan-400 to-cyan-600',     isQuickCommerce: true,  deliveryInfo: 'Delivered in 12 min', deliveryTime: '12 min' },
+  Blinkit:          { logoInitials: 'BK', logoColor: 'from-yellow-300 to-yellow-500', isQuickCommerce: true,  deliveryInfo: 'Delivered in 10 min', deliveryTime: '10 min' },
+  Zepto:            { logoInitials: 'ZP', logoColor: 'from-cyan-400 to-cyan-600',     isQuickCommerce: true,  deliveryInfo: 'Delivered in 12 min', deliveryTime: '12 min' },
+  'Reliance Digital': { logoInitials: 'RD', logoColor: 'from-red-500 to-red-700',    isQuickCommerce: false, deliveryInfo: 'Free delivery in 4-5 days' },
+  Myntra:           { logoInitials: 'MY', logoColor: 'from-pink-400 to-pink-600',     isQuickCommerce: false, deliveryInfo: 'Free delivery in 4-6 days' },
+  Ajio:             { logoInitials: 'AJ', logoColor: 'from-indigo-400 to-indigo-600', isQuickCommerce: false, deliveryInfo: 'Free delivery in 5-7 days' },
+  BigBasket:        { logoInitials: 'BB', logoColor: 'from-green-500 to-green-700',   isQuickCommerce: false, deliveryInfo: 'Delivered in 2 hrs to 2 days' },
 };
 
 function productToStorePrice(p: ProductData): StorePrice | null {
@@ -93,6 +97,39 @@ async function cacheSet(key: string, value: unknown): Promise<void> {
   } catch { /* cache failure is non-fatal */ }
 }
 
+// ── Search query builder ────────────────────────────────────────────────────
+/**
+ * Strip noise from product names so cross-store search works better.
+ * "Apple iPhone 16 (128 GB) - Ultramarine Blue" → "Apple iPhone 16 128GB"
+ * "Sony WH-1000XM5 Wireless Noise Cancelling Headphones" → "Sony WH-1000XM5"
+ */
+function buildSearchQuery(name: string): string {
+  let q = name;
+
+  // Remove " - Color/Finish" suffixes
+  q = q.replace(/\s+[-–]\s+[A-Za-z\s]+$/, '');
+
+  // Remove trailing parenthetical colors: "(Midnight Blue)" "(Titanium)"
+  q = q.replace(/\s*\([A-Za-z\s]+\)\s*$/, '');
+
+  // Normalise storage specs: "(128 GB)" → "128GB", "256 GB" → "256GB"
+  q = q.replace(/\b(\d+)\s*(GB|TB|MP)\b/gi, '$1$2');
+
+  // Remove parenthetical content in the middle that isn't storage
+  q = q.replace(/\s*\([^)]*\)\s*/g, ' ');
+
+  // Collapse whitespace
+  q = q.replace(/\s+/g, ' ').trim();
+
+  // Cap at ~60 chars to avoid overly long queries
+  if (q.length > 60) {
+    q = q.slice(0, 60).replace(/\s\S*$/, '').trim();
+  }
+
+  console.log(`[buildSearchQuery] "${name}" → "${q}"`);
+  return q;
+}
+
 // ── Legacy mock data ────────────────────────────────────────────────────────
 import { getProductBySearchQuery } from '@/lib/mockData';
 
@@ -160,13 +197,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<CompareRe
       console.log('[compare] source product:', source.name, '| store:', source.store);
 
       // 2. Search all OTHER stores in parallel (exclude source store)
-      type StoreKeyType = 'amazon' | 'flipkart' | 'blinkit' | 'zepto' | 'croma';
-      const validStoreKeys: StoreKeyType[] = ['amazon', 'flipkart', 'blinkit', 'zepto', 'croma'];
-      const excludeList: StoreKeyType[] = validStoreKeys.includes(store as StoreKeyType)
+      type StoreKeyType = 'amazon' | 'flipkart' | 'blinkit' | 'zepto' | 'croma' | 'reliance' | 'myntra' | 'ajio' | 'bigbasket';
+      const allStoreKeys: StoreKeyType[] = ['amazon', 'flipkart', 'blinkit', 'zepto', 'croma', 'reliance', 'myntra', 'ajio', 'bigbasket'];
+      const excludeList: StoreKeyType[] = allStoreKeys.includes(store as StoreKeyType)
         ? [store as StoreKeyType]
         : [];
+
+      // Use a clean search query (strips colors/variants that hurt cross-store matching)
+      const searchQuery = buildSearchQuery(source.name);
       const candidates = await searchAllStores(
-        source.name,
+        searchQuery,
         source.modelNumber,
         excludeList
       );

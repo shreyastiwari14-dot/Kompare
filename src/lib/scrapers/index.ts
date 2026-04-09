@@ -4,6 +4,10 @@ import { scrapeAmazon } from './amazon';
 import { scrapeFlipkart } from './flipkart';
 import { scrapeBlinkit } from './blinkit';
 import { scrapeZepto } from './zepto';
+import { scrapeCroma } from './croma';
+import { scrapeReliance } from './reliance';
+import { scrapeMyntra } from './myntra';
+import { scrapeAjio } from './ajio';
 
 export async function scrapeProduct(url: string): Promise<ProductData> {
   const { store, productId } = parseProductLink(url);
@@ -19,22 +23,13 @@ export async function scrapeProduct(url: string): Promise<ProductData> {
     case 'zepto':
       return scrapeZepto(url);
     case 'croma':
+      return scrapeCroma(url);
+    case 'reliance':
+      return scrapeReliance(url);
     case 'myntra':
+      return scrapeMyntra(url);
     case 'ajio':
-      // These stores will get dedicated scrapers in phase 2.
-      // For now return a partial stub so the API doesn't error.
-      return {
-        name: 'Product',
-        price: null,
-        mrp: null,
-        image: null,
-        modelNumber: null,
-        category: null,
-        store: store.charAt(0).toUpperCase() + store.slice(1),
-        url,
-        rating: null,
-        inStock: true,
-      };
+      return scrapeAjio(url);
     default:
       throw new Error(`Unsupported store for URL: ${url}`);
   }

@@ -193,7 +193,10 @@ function buildMockProduct(source: ProductData, prices: StorePrice[]): Product {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ComparePageContent() {
   const searchParams = useSearchParams();
-  const q = searchParams.get("q") ?? "";
+  // Support both ?url= (from URL paste) and ?q= (from text search or legacy links)
+  const urlParam = searchParams.get("url") ?? "";
+  const qParam = searchParams.get("q") ?? "";
+  const q = urlParam || qParam;
 
   const isUrl = q.startsWith("http://") || q.startsWith("https://");
 

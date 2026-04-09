@@ -12,7 +12,11 @@ export interface ProductData {
 }
 
 export interface ParsedLink {
-  store: 'amazon' | 'flipkart' | 'croma' | 'blinkit' | 'zepto' | 'myntra' | 'ajio' | 'unknown';
+  store:
+    | 'amazon' | 'flipkart' | 'croma' | 'blinkit' | 'zepto'
+    | 'myntra' | 'ajio' | 'reliance' | 'bigbasket'
+    | 'tatacliq' | 'jiomart' | 'nykaa' | 'vijaysales'
+    | 'unknown';
   productId: string;
 }
 

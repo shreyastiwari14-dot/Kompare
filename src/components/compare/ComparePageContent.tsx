@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { StorePrice } from "@/lib/mockData";
+import { Search } from "lucide-react";
+import type { ShoppingResult } from "@/lib/providers/googleShopping";
 import PriceCard from "@/components/compare/PriceCard";
 import AlertBox from "@/components/compare/AlertBox";
 import Breadcrumb from "@/components/ui/Breadcrumb";
@@ -53,7 +54,7 @@ function extractVariantPills(name: string): string[] {
   const pills: string[] = [];
   const storageMatch = name.match(/\b(\d+\s*(?:GB|TB))\b/gi);
   if (storageMatch) pills.push(...storageMatch.map(s => s.replace(/\s+/, ' ').toUpperCase()));
-  const colorMatch = name.match(/\b(Black|White|Blue|Red|Green|Gold|Silver|Graphite|Midnight|Starlight|Titanium|Natural|Pink|Purple|Yellow|Violet)\b/gi);
+  const colorMatch = name.match(/\b(Black|White|Blue|Red|Green|Gold|Silver|Graphite|Midnight|Starlight|Titanium|Natural|Pink|Purple|Yellow|Violet|Navy|Ivory|Lilac|Awesome)\b/gi);
   if (colorMatch) pills.push(...colorMatch.map(c => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()));
   return [...new Set(pills)].slice(0, 4);
 }
@@ -76,7 +77,6 @@ function ProductHeader({ name, image, lowestPrice, lowestStoreName, totalStores 
       className="mb-10"
     >
       <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-8 items-start">
-        {/* Image */}
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -96,7 +96,6 @@ function ProductHeader({ name, image, lowestPrice, lowestStoreName, totalStores 
           )}
         </motion.div>
 
-        {/* Info */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -141,32 +140,71 @@ function ProductHeader({ name, image, lowestPrice, lowestStoreName, totalStores 
   );
 }
 
-// ── API response type ─────────────────────────────────────────────────────────
-interface CompareApiResponse {
-  success: boolean;
-  query?: string;
-  product?: { name: string; image?: string | null };
-  prices?: (StorePrice & { url?: string })[];
-  ecommerce?: (StorePrice & { url?: string })[];
-  quickCommerce?: (StorePrice & { url?: string })[];
-  bestPrice?: StorePrice | null;
-  totalStores?: number;
-  cached?: boolean;
-  message?: string;
+// ── Search bar at top of results ──────────────────────────────────────────────
+function SearchAgainBar() {
+  const router = useRouter();
+  const [val, setVal] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = val.trim();
+    if (!trimmed) return;
+    const looksLikeUrl =
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://") ||
+      /^(www\.)?(amazon|flipkart|croma|myntra|ajio|reliance|zepto|blinkit|swiggy|bigbasket|nykaa|tatacliq|jiomart)\.(in|com)/i.test(trimmed);
+    if (looksLikeUrl) {
+      const full = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+      router.push(`/compare?url=${encodeURIComponent(full)}`);
+    } else {
+      router.push(`/compare?q=${encodeURIComponent(trimmed)}`);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex gap-2 mb-8">
+      <div className="relative flex-1">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          type="text"
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          placeholder="Search another product or paste a URL…"
+          className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-muted text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent text-sm"
+        />
+      </div>
+      <button
+        type="submit"
+        className="px-4 py-2.5 rounded-lg bg-accent text-accent-foreground font-semibold text-sm hover:bg-accent/90 transition-colors active:scale-95"
+      >
+        Compare
+      </button>
+    </form>
+  );
 }
 
-// ── Sort helper ───────────────────────────────────────────────────────────────
-type SortKey = "price" | "discount" | "delivery";
+// ── API response type ─────────────────────────────────────────────────────────
+interface CompareApiResponse {
+  query?: string;
+  product?: { name: string; image?: string | null };
+  prices?: ShoppingResult[];
+  ecommerce?: ShoppingResult[];
+  quickCommerce?: ShoppingResult[];
+  bestPrice?: ShoppingResult | null;
+  totalStores?: number;
+  error?: string;
+}
 
-function sortStores(stores: (StorePrice & { url?: string })[], key: SortKey) {
-  return [...stores].sort((a, b) => {
-    if (key === "price")    return a.price - b.price;
-    if (key === "discount") return (b.discount ?? 0) - (a.discount ?? 0);
+type SortKey = "price" | "delivery";
+
+function sortResults(items: ShoppingResult[], key: SortKey): ShoppingResult[] {
+  return [...items].sort((a, b) => {
+    if (key === "price") return a.price - b.price;
     if (key === "delivery") {
-      const score = (s: StorePrice) => {
-        const info = s.deliveryInfo.toLowerCase();
-        if (info.includes("min")) return 0;
-        if (info.includes("today") || info.includes("tomorrow")) return 1;
+      const score = (s: ShoppingResult) => {
+        const d = (s.delivery || '').toLowerCase();
+        if (d.includes('min')) return 0;
+        if (d.includes('today') || d.includes('same')) return 1;
         return 2;
       };
       return score(a) - score(b);
@@ -180,25 +218,22 @@ export default function ComparePageContent() {
   const searchParams = useSearchParams();
   const urlParam = searchParams.get("url") ?? "";
   const qParam   = searchParams.get("q")   ?? "";
-  const q = urlParam || qParam;
-
-  const isUrl = q.startsWith("http://") || q.startsWith("https://");
+  const input = urlParam || qParam;
 
   const [sortBy, setSortBy] = useState<SortKey>("price");
-  const [product, setProduct]       = useState<{ name: string; image?: string | null } | null>(null);
-  const [ecommerce, setEcommerce]   = useState<(StorePrice & { url?: string })[]>([]);
-  const [qcPrices, setQcPrices]     = useState<(StorePrice & { url?: string })[]>([]);
-  const [totalStores, setTotalStores] = useState(0);
-  const [isLoading, setIsLoading]   = useState(true);
-  const [error, setError]           = useState<string | null>(null);
-  const [isCached, setIsCached]     = useState(false);
+  const [product, setProduct]           = useState<{ name: string; image?: string | null } | null>(null);
+  const [ecommerce, setEcommerce]       = useState<ShoppingResult[]>([]);
+  const [qcPrices, setQcPrices]         = useState<ShoppingResult[]>([]);
+  const [totalStores, setTotalStores]   = useState(0);
+  const [isLoading, setIsLoading]       = useState(true);
+  const [error, setError]               = useState<string | null>(null);
 
-  const fetchPrices = useCallback(async (input: string) => {
+  const fetchPrices = useCallback(async (raw: string) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const payload = input.startsWith("http") ? { url: input } : { query: input };
+      const payload = raw.startsWith("http") ? { url: raw } : { query: raw };
       const res  = await fetch("/api/compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -206,29 +241,27 @@ export default function ComparePageContent() {
       });
       const data: CompareApiResponse = await res.json();
 
-      if (data.success) {
+      if (data.error) {
+        setError(data.error);
+      } else {
         setProduct(data.product ?? null);
         setEcommerce(data.ecommerce ?? []);
         setQcPrices(data.quickCommerce ?? []);
         setTotalStores(data.totalStores ?? 0);
-        setIsCached(data.cached ?? false);
-      } else {
-        setError(data.message ?? "Could not fetch prices.");
       }
     } catch (err) {
       setError("Network error — please try again.");
-      console.error("[compare]", err);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (q) fetchPrices(q);
+    if (input) fetchPrices(input);
     else setIsLoading(false);
-  }, [q, fetchPrices]);
+  }, [input, fetchPrices]);
 
-  // ── Loading ────────────────────────────────────────────────────────────────
+  // ── Loading ─────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -239,8 +272,8 @@ export default function ComparePageContent() {
     );
   }
 
-  // ── No query ───────────────────────────────────────────────────────────────
-  if (!q) {
+  // ── No query ─────────────────────────────────────────────────────────────
+  if (!input) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -254,12 +287,13 @@ export default function ComparePageContent() {
     );
   }
 
-  // ── No results ─────────────────────────────────────────────────────────────
-  if (!isLoading && ecommerce.length === 0 && qcPrices.length === 0) {
+  // ── No results ────────────────────────────────────────────────────────────
+  if (ecommerce.length === 0 && qcPrices.length === 0) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Compare", href: "/compare" }, { label: "No results" }]} />
+          <SearchAgainBar />
           {error && (
             <div className="mb-4 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-sm text-yellow-500">
               ⚠ {error}
@@ -267,10 +301,10 @@ export default function ComparePageContent() {
           )}
           <div className="rounded-lg border border-border bg-card p-10 text-center">
             <p className="text-lg font-semibold mb-2">
-              No prices found for &ldquo;{product?.name || q}&rdquo;
+              No prices found for &ldquo;{product?.name || input}&rdquo;
             </p>
             <p className="text-sm text-muted-foreground mb-6">
-              Try a more specific search term — e.g. &ldquo;iPhone 16 128GB&rdquo; instead of just &ldquo;iPhone&rdquo;.
+              Try a more specific search — e.g. &ldquo;iPhone 16 128GB&rdquo; instead of &ldquo;iPhone&rdquo;.
             </p>
             <a href="/" className="inline-block px-6 py-2.5 rounded-lg bg-accent text-accent-foreground font-semibold hover:bg-accent/90 transition-colors">
               Try another search
@@ -281,34 +315,24 @@ export default function ComparePageContent() {
     );
   }
 
-  // ── Results ────────────────────────────────────────────────────────────────
-  const allPrices    = [...ecommerce, ...qcPrices];
-  const lowestPrice  = allPrices.length ? Math.min(...allPrices.map(s => s.price)) : 0;
-  const lowestStore  = allPrices.find(s => s.price === lowestPrice);
+  // ── Results ───────────────────────────────────────────────────────────────
+  const allPrices   = [...ecommerce, ...qcPrices];
+  const lowestPrice = Math.min(...allPrices.map(s => s.price));
+  const lowestStore = allPrices.find(s => s.price === lowestPrice);
 
-  const sortedEcom   = sortStores(ecommerce, sortBy);
-  const sortedQC     = sortStores(qcPrices,  sortBy);
-  const lowestEcom   = sortedEcom.length ? Math.min(...sortedEcom.map(s => s.price)) : 0;
-  const lowestQC     = sortedQC.length  ? Math.min(...sortedQC.map(s => s.price))  : 0;
+  const sortedEcom = sortResults(ecommerce, sortBy);
+  const sortedQC   = sortResults(qcPrices,  sortBy);
+  const lowestEcom = sortedEcom.length ? Math.min(...sortedEcom.map(s => s.price)) : 0;
+  const lowestQC   = sortedQC.length  ? Math.min(...sortedQC.map(s => s.price))  : 0;
 
-  const breadcrumbName = (product?.name ?? q).slice(0, 50) + ((product?.name ?? q).length > 50 ? "…" : "");
-
-  // Minimal product object for AlertBox
-  const alertProduct = {
-    id: q,
-    name: product?.name ?? q,
-    category: "Product",
-    emoji: "🛍️",
-    image: product?.image ?? undefined,
-    storePrices: allPrices,
-    priceHistory: [],
-    lowestPrice,
-    maxSavings: 0,
-  };
+  const breadcrumbName = (product?.name ?? input).slice(0, 50) + ((product?.name ?? input).length > 50 ? "…" : "");
 
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
+        {/* Search again bar */}
+        <SearchAgainBar />
 
         {/* Breadcrumb */}
         <Breadcrumb items={[
@@ -316,20 +340,6 @@ export default function ComparePageContent() {
           { label: "Compare", href: "/compare" },
           { label: breadcrumbName },
         ]} />
-
-        {/* Cache indicator */}
-        {isCached && (
-          <div className="mb-4 text-xs text-muted-foreground">
-            Showing cached results (under 30 min old)
-          </div>
-        )}
-
-        {/* Error banner (partial failure) */}
-        {error && (
-          <div className="mb-4 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-sm text-yellow-500">
-            ⚠ {error}
-          </div>
-        )}
 
         {/* Product header */}
         {product && (
@@ -346,7 +356,7 @@ export default function ComparePageContent() {
         {(sortedEcom.length > 0 || sortedQC.length > 0) && (
           <div className="flex items-center gap-2 mb-6 flex-wrap">
             <span className="text-sm text-muted-foreground mr-1">Sort:</span>
-            {(["price", "discount", "delivery"] as const).map(key => (
+            {(["price", "delivery"] as const).map(key => (
               <button
                 key={key}
                 onClick={() => setSortBy(key)}
@@ -356,7 +366,7 @@ export default function ComparePageContent() {
                     : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
                 }`}
               >
-                {key === "price" ? "Price ↑" : key === "discount" ? "Discount" : "Delivery"}
+                {key === "price" ? "Price ↑" : "Delivery"}
               </button>
             ))}
           </div>
@@ -376,11 +386,11 @@ export default function ComparePageContent() {
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-              {sortedEcom.map((store, i) => (
+              {sortedEcom.map((item, i) => (
                 <PriceCard
-                  key={store.id}
-                  store={store}
-                  isLowest={store.price === lowestEcom}
+                  key={`${item.store}-${i}`}
+                  item={item}
+                  isLowest={item.price === lowestEcom}
                   index={i}
                 />
               ))}
@@ -396,7 +406,6 @@ export default function ComparePageContent() {
             transition={{ duration: 0.5, delay: 0.15 }}
             className="mt-12"
           >
-            {/* Divider with label */}
             <div className="relative flex items-center mb-8">
               <div className="flex-1 border-t border-border" />
               <span className="mx-4 flex items-center gap-2 text-sm font-semibold text-muted-foreground whitespace-nowrap">
@@ -411,11 +420,11 @@ export default function ComparePageContent() {
               <p className="text-sm text-muted-foreground">Get your product delivered in minutes</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedQC.map((store, i) => (
+              {sortedQC.map((item, i) => (
                 <PriceCard
-                  key={store.id}
-                  store={store}
-                  isLowest={store.price === lowestQC}
+                  key={`${item.store}-qc-${i}`}
+                  item={item}
+                  isLowest={item.price === lowestQC}
                   index={i}
                 />
               ))}
@@ -425,7 +434,7 @@ export default function ComparePageContent() {
 
         {/* Price Alert */}
         {allPrices.length > 0 && (
-          <AlertBox product={alertProduct} />
+          <AlertBox product={{ lowestPrice, name: product?.name ?? input }} />
         )}
       </div>
     </div>

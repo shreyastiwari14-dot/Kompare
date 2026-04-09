@@ -3,11 +3,10 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Check } from "lucide-react";
-import { Product } from "@/lib/mockData";
 import { formatPrice } from "@/lib/utils";
 
 interface AlertBoxProps {
-  product: Product;
+  product: { lowestPrice: number; name: string };
 }
 
 export default function AlertBox({ product }: AlertBoxProps) {

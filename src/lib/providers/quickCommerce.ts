@@ -1,22 +1,9 @@
-import { StorePrice } from '@/lib/mockData';
+import type { ShoppingResult } from './googleShopping';
 
-// Default Mumbai coords — works for most Indian users
 const DEFAULT_LAT = 19.076;
 const DEFAULT_LNG = 72.8777;
 
-// ── Blinkit ──────────────────────────────────────────────────────────────────
-interface BlinkitProduct {
-  name?: string;
-  price?: number | string;
-  offer_price?: number | string;
-  mrp?: number | string;
-  image_url?: string;
-  slug?: string;
-  product_id?: number | string;
-  in_stock?: boolean | number;
-}
-
-async function searchBlinkit(query: string, lat = DEFAULT_LAT, lng = DEFAULT_LNG): Promise<(StorePrice & { url: string })[]> {
+async function searchBlinkit(query: string, lat = DEFAULT_LAT, lng = DEFAULT_LNG): Promise<ShoppingResult[]> {
   try {
     const res = await fetch('https://blinkit.com/v2/search', {
       method: 'POST',
@@ -30,56 +17,34 @@ async function searchBlinkit(query: string, lat = DEFAULT_LAT, lng = DEFAULT_LNG
       body: JSON.stringify({ q: query }),
       signal: AbortSignal.timeout(10_000),
     });
-
-    const data = await res.json() as { products?: BlinkitProduct[] };
+    const data = await res.json() as { products?: any[] };
     const products = data.products || [];
     console.log(`[blinkit] found ${products.length} results`);
 
-    return products.slice(0, 3).map((p, i) => {
+    return products.slice(0, 3).map((p: any, i: number) => {
       const price = typeof p.offer_price === 'number' ? p.offer_price :
                     typeof p.price === 'number' ? p.price : 0;
-      const mrp   = typeof p.mrp === 'number' ? p.mrp : price;
-      const discount = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : undefined;
-
       return {
-        id:            `blinkit-${i}-${Date.now()}`,
-        storeName:     'Blinkit',
+        name: p.name || query,
         price,
-        originalPrice: mrp > price ? mrp : undefined,
-        discount,
-        deliveryInfo:  'Delivered in 10 min',
-        logoInitials:  'BK',
-        logoColor:     'from-yellow-300 to-yellow-500',
-        isQuickCommerce: true,
-        deliveryTime:  '10 min',
-        url:           p.slug && p.product_id
+        store: 'blinkit',
+        storeName: 'Blinkit',
+        url: p.slug && p.product_id
           ? `https://blinkit.com/prn/${p.slug}/prid/${p.product_id}`
           : `https://blinkit.com/s/?q=${encodeURIComponent(query)}`,
+        image: p.image_url || null,
+        rating: null,
+        reviews: null,
+        delivery: '10 min delivery',
       };
-    }).filter(p => p.price > 0);
+    }).filter((p: ShoppingResult) => p.price > 0);
   } catch (e) {
     console.warn('[blinkit] failed:', e);
     return [];
   }
 }
 
-// ── Zepto ─────────────────────────────────────────────────────────────────────
-interface ZeptoProduct {
-  name?: string;
-  product_name?: string;
-  selling_price?: number;
-  price?: number;
-  offer_price?: number;
-  mrp?: number;
-  max_retail_price?: number;
-  image?: string;
-  image_url?: string;
-  id?: string | number;
-  product_id?: string | number;
-  in_stock?: boolean;
-}
-
-async function searchZepto(query: string, lat = DEFAULT_LAT, lng = DEFAULT_LNG): Promise<(StorePrice & { url: string })[]> {
+async function searchZepto(query: string, lat = DEFAULT_LAT, lng = DEFAULT_LNG): Promise<ShoppingResult[]> {
   try {
     const res = await fetch(
       `https://api.zeptonow.com/api/v3/search?query=${encodeURIComponent(query)}&page_size=5`,
@@ -89,58 +54,38 @@ async function searchZepto(query: string, lat = DEFAULT_LAT, lng = DEFAULT_LNG):
           'platform': 'web',
           'latitude': String(lat),
           'longitude': String(lng),
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36',
         },
         signal: AbortSignal.timeout(10_000),
       }
     );
-
-    const data = await res.json() as { items?: ZeptoProduct[]; results?: ZeptoProduct[] };
-    const items: ZeptoProduct[] = data.items || data.results || [];
+    const data = await res.json() as { items?: any[]; results?: any[] };
+    const items = data.items || data.results || [];
     console.log(`[zepto] found ${items.length} results`);
 
-    return items.slice(0, 3).map((p, i) => {
+    return items.slice(0, 3).map((p: any, i: number) => {
       const price = p.selling_price ?? p.offer_price ?? p.price ?? 0;
-      const mrp   = p.mrp ?? p.max_retail_price ?? price;
-      const discount = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : undefined;
       const pid = p.id ?? p.product_id ?? '';
-
       return {
-        id:            `zepto-${i}-${Date.now()}`,
-        storeName:     'Zepto',
+        name: p.name || p.product_name || query,
         price,
-        originalPrice: mrp > price ? mrp : undefined,
-        discount,
-        deliveryInfo:  'Delivered in 10 min',
-        logoInitials:  'ZP',
-        logoColor:     'from-cyan-400 to-cyan-600',
-        isQuickCommerce: true,
-        deliveryTime:  '10 min',
-        url:           pid
+        store: 'zepto',
+        storeName: 'Zepto',
+        url: pid
           ? `https://www.zeptonow.com/product/${pid}`
           : `https://www.zeptonow.com/search?query=${encodeURIComponent(query)}`,
+        image: p.image || p.image_url || null,
+        rating: null,
+        reviews: null,
+        delivery: '10 min delivery',
       };
-    }).filter(p => p.price > 0);
+    }).filter((p: ShoppingResult) => p.price > 0);
   } catch (e) {
     console.warn('[zepto] failed:', e);
     return [];
   }
 }
 
-// ── BigBasket ─────────────────────────────────────────────────────────────────
-interface BBProduct {
-  desc?: string;
-  product_name?: string;
-  id?: string | number;
-  p_img_url?: string;
-  image_url?: string;
-  pricing?: {
-    discount?: { prim_price?: { sp?: number } };
-    mrp?: { prim_price?: { sp?: number } };
-  };
-}
-
-async function searchBigBasket(query: string): Promise<(StorePrice & { url: string })[]> {
+async function searchBigBasket(query: string): Promise<ShoppingResult[]> {
   try {
     const res = await fetch(
       `https://www.bigbasket.com/listing-svc/v2/products?type=search&slug=${encodeURIComponent(query)}&page=1`,
@@ -152,50 +97,33 @@ async function searchBigBasket(query: string): Promise<(StorePrice & { url: stri
         signal: AbortSignal.timeout(10_000),
       }
     );
-
-    const data = await res.json() as { tabs?: Array<{ product_info?: { products?: BBProduct[] } }> };
+    const data = await res.json() as { tabs?: Array<{ product_info?: { products?: any[] } }> };
     const products = data.tabs?.[0]?.product_info?.products || [];
     console.log(`[bigbasket] found ${products.length} results`);
 
-    return products.slice(0, 3).map((p, i) => {
+    return products.slice(0, 3).map((p: any, i: number) => {
       const price = p.pricing?.discount?.prim_price?.sp ?? 0;
-      const mrp   = p.pricing?.mrp?.prim_price?.sp ?? price;
-      const discount = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : undefined;
-
       return {
-        id:            `bigbasket-${i}-${Date.now()}`,
-        storeName:     'BigBasket',
+        name: p.desc || p.product_name || query,
         price,
-        originalPrice: mrp > price ? mrp : undefined,
-        discount,
-        deliveryInfo:  'Delivered today or tomorrow',
-        logoInitials:  'BB',
-        logoColor:     'from-green-500 to-green-700',
-        isQuickCommerce: true,
-        url:           p.id
+        store: 'bigbasket',
+        storeName: 'BigBasket',
+        url: p.id
           ? `https://www.bigbasket.com/pd/${p.id}/`
           : `https://www.bigbasket.com/ps/?q=${encodeURIComponent(query)}`,
+        image: p.p_img_url || p.image_url || null,
+        rating: null,
+        reviews: null,
+        delivery: 'Same day delivery',
       };
-    }).filter(p => p.price > 0);
+    }).filter((p: ShoppingResult) => p.price > 0);
   } catch (e) {
     console.warn('[bigbasket] failed:', e);
     return [];
   }
 }
 
-// ── Swiggy Instamart ──────────────────────────────────────────────────────────
-interface InstamartItem {
-  display_name?: string;
-  name?: string;
-  offer_price?: number;
-  price?: number;
-  mrp?: number;
-  max_price?: number;
-  image_url?: string;
-  item_id?: string | number;
-}
-
-async function searchInstamart(query: string, lat = DEFAULT_LAT, lng = DEFAULT_LNG): Promise<(StorePrice & { url: string })[]> {
+async function searchInstamart(query: string, lat = DEFAULT_LAT, lng = DEFAULT_LNG): Promise<ShoppingResult[]> {
   try {
     const res = await fetch(
       `https://www.swiggy.com/api/instamart/search?pageNumber=0&searchResultsOffset=0&limit=5&query=${encodeURIComponent(query)}&ageConsent=false`,
@@ -208,45 +136,38 @@ async function searchInstamart(query: string, lat = DEFAULT_LAT, lng = DEFAULT_L
         signal: AbortSignal.timeout(10_000),
       }
     );
-
-    const data = await res.json() as { data?: { widgets?: Array<{ data?: InstamartItem[] }> } };
+    const data = await res.json() as { data?: { widgets?: Array<{ data?: any[] }> } };
     const widgets = data.data?.widgets || [];
-    const items: InstamartItem[] = widgets.flatMap(w => w.data || []);
+    const items: any[] = widgets.flatMap(w => w.data || []);
     console.log(`[instamart] found ${items.length} results`);
 
-    return items.slice(0, 3).map((p, i) => {
+    return items.slice(0, 3).map((p: any, i: number) => {
       const price = p.offer_price ?? p.price ?? 0;
-      const mrp   = p.mrp ?? p.max_price ?? price;
-      const discount = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : undefined;
-
       return {
-        id:            `instamart-${i}-${Date.now()}`,
-        storeName:     'Swiggy Instamart',
+        name: p.display_name || p.name || query,
         price,
-        originalPrice: mrp > price ? mrp : undefined,
-        discount,
-        deliveryInfo:  'Delivered in 15 min',
-        logoInitials:  'IM',
-        logoColor:     'from-orange-500 to-red-500',
-        isQuickCommerce: true,
-        deliveryTime:  '15 min',
-        url:           p.item_id
+        store: 'instamart',
+        storeName: 'Swiggy Instamart',
+        url: p.item_id
           ? `https://www.swiggy.com/instamart/item/${p.item_id}`
           : `https://www.swiggy.com/instamart`,
+        image: p.image_url || null,
+        rating: null,
+        reviews: null,
+        delivery: '15 min delivery',
       };
-    }).filter(p => p.price > 0);
+    }).filter((p: ShoppingResult) => p.price > 0);
   } catch (e) {
     console.warn('[instamart] failed:', e);
     return [];
   }
 }
 
-// ── Public export ─────────────────────────────────────────────────────────────
 export async function searchQuickCommerce(
   query: string,
   lat?: number,
   lng?: number
-): Promise<(StorePrice & { url: string })[]> {
+): Promise<ShoppingResult[]> {
   const settled = await Promise.allSettled([
     searchBlinkit(query, lat, lng),
     searchZepto(query, lat, lng),
@@ -254,17 +175,10 @@ export async function searchQuickCommerce(
     searchInstamart(query, lat, lng),
   ]);
 
-  const results: (StorePrice & { url: string })[] = [];
-  const labels = ['Blinkit', 'Zepto', 'BigBasket', 'Instamart'];
-
+  const results: ShoppingResult[] = [];
   settled.forEach((r, i) => {
-    if (r.status === 'fulfilled') {
-      results.push(...r.value);
-    } else {
-      console.warn(`[quickCommerce] ${labels[i]} failed:`, r.reason?.message ?? r.reason);
-    }
+    if (r.status === 'fulfilled') results.push(...r.value);
   });
-
   console.log(`[quickCommerce] total: ${results.length}`);
   return results;
 }

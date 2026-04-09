@@ -1,44 +1,53 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { StorePrice } from "@/lib/mockData";
-import { formatPrice } from "@/lib/utils";
+import type { ShoppingResult } from "@/lib/providers/googleShopping";
 
 interface PriceCardProps {
-  store: StorePrice;
+  item: ShoppingResult;
   isLowest: boolean;
   index: number;
 }
 
-/** Convert "by 11 Apr" style dates → "in 2 days · Apr 11". Pass-through everything else. */
-function formatDeliveryInfo(info: string): string {
-  const byDateMatch = info.match(/by\s+(\d+)\s+(\w{3})/i);
-  if (byDateMatch) {
-    const day = parseInt(byDateMatch[1]);
-    const mon = byDateMatch[2];
-    const months: Record<string, number> = {
-      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-    };
-    const targetMonth = months[mon.toLowerCase()];
-    if (targetMonth !== undefined) {
-      const now = new Date();
-      const target = new Date(now.getFullYear(), targetMonth, day);
-      const diffDays = Math.round((target.getTime() - now.getTime()) / 86_400_000);
-      const label = diffDays === 0
-        ? 'today'
-        : diffDays === 1
-          ? `tomorrow · ${mon} ${day}`
-          : diffDays > 0 && diffDays <= 14
-            ? `in ${diffDays} days · ${mon} ${day}`
-            : null;
-      if (label) return info.replace(/by\s+\d+\s+\w{3}/i, label);
-    }
-  }
-  return info;
+const STORE_COLORS: Record<string, string> = {
+  amazon:     'from-orange-400 to-orange-600',
+  flipkart:   'from-blue-400 to-blue-600',
+  croma:      'from-green-400 to-green-600',
+  reliance:   'from-red-500 to-red-700',
+  tatacliq:   'from-purple-400 to-purple-600',
+  vijaysales: 'from-blue-600 to-blue-800',
+  myntra:     'from-pink-400 to-pink-600',
+  ajio:       'from-indigo-400 to-indigo-600',
+  nykaa:      'from-rose-400 to-rose-600',
+  samsung:    'from-blue-700 to-indigo-700',
+  apple:      'from-gray-500 to-gray-700',
+  jiomart:    'from-sky-400 to-sky-600',
+  blinkit:    'from-yellow-300 to-yellow-500',
+  zepto:      'from-cyan-400 to-cyan-600',
+  instamart:  'from-orange-500 to-red-500',
+  bigbasket:  'from-green-500 to-green-700',
+};
+
+const QC_STORES = new Set(['blinkit', 'zepto', 'instamart', 'bigbasket']);
+
+function getLogoInitials(storeName: string): string {
+  return storeName
+    .split(/\s+/)
+    .map(w => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 }
 
-export default function PriceCard({ store, isLowest, index }: PriceCardProps) {
+function formatPrice(n: number): string {
+  return n.toLocaleString('en-IN');
+}
+
+export default function PriceCard({ item, isLowest, index }: PriceCardProps) {
+  const logoColor = STORE_COLORS[item.store] ?? 'from-gray-400 to-gray-600';
+  const initials = getLogoInitials(item.storeName);
+  const isQC = QC_STORES.has(item.store);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -57,28 +66,24 @@ export default function PriceCard({ store, isLowest, index }: PriceCardProps) {
       )}
 
       <div className="flex flex-col gap-3">
-        {/* Store header: logo + name + delivery */}
+        {/* Store header */}
         <div className="flex items-center gap-3">
           <div
-            className={`w-12 h-12 rounded-lg bg-gradient-to-br ${store.logoColor} flex items-center justify-center text-xs font-bold text-white/90 flex-shrink-0`}
+            className={`w-12 h-12 rounded-lg bg-gradient-to-br ${logoColor} flex items-center justify-center text-xs font-bold text-white/90 flex-shrink-0`}
           >
-            {store.logoInitials}
+            {initials}
           </div>
           <div className="flex flex-col min-w-0">
-            <h3 className="font-semibold text-foreground truncate">{store.storeName}</h3>
+            <h3 className="font-semibold text-foreground truncate">{item.storeName}</h3>
             <p className="text-xs text-muted-foreground truncate">
-              {formatDeliveryInfo(store.deliveryInfo)}
+              {item.delivery ?? (isQC ? 'Fast delivery' : 'Check store for delivery')}
             </p>
           </div>
         </div>
 
-        {/* Fixed 24px discount badge slot — always occupies space */}
+        {/* Spacer for discount badge slot */}
         <div className="h-6 flex items-center">
-          {store.discount ? (
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-              {store.discount}% OFF
-            </span>
-          ) : null}
+          {/* No discount data from SerpAPI in basic results */}
         </div>
 
         {/* Price row */}
@@ -89,16 +94,11 @@ export default function PriceCard({ store, isLowest, index }: PriceCardProps) {
                 isLowest ? "text-green-400" : "text-foreground"
               }`}
             >
-              ₹{formatPrice(store.price)}
+              ₹{formatPrice(item.price)}
             </span>
-            {store.originalPrice && (
-              <span className="text-sm text-muted-foreground line-through tabular-nums">
-                ₹{formatPrice(store.originalPrice)}
-              </span>
-            )}
           </div>
 
-          {/* Fixed 24px lowest-price badge slot */}
+          {/* Lowest price badge slot */}
           <div className="h-6 flex items-center">
             {isLowest ? (
               <motion.span
@@ -113,13 +113,20 @@ export default function PriceCard({ store, isLowest, index }: PriceCardProps) {
           </div>
         </div>
 
-        {/* Quick Commerce delivery badge */}
-        {store.isQuickCommerce && store.deliveryTime && (
+        {/* Quick commerce delivery badge */}
+        {isQC && item.delivery && (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/30 w-fit">
             <span className="text-base">⚡</span>
             <span className="text-xs font-semibold text-orange-500 dark:text-orange-400">
-              {store.deliveryTime}
+              {item.delivery}
             </span>
+          </div>
+        )}
+
+        {/* Rating */}
+        {item.rating && (
+          <div className="text-xs text-muted-foreground">
+            ★ {item.rating.toFixed(1)}{item.reviews ? ` · ${item.reviews.toLocaleString('en-IN')} reviews` : ''}
           </div>
         )}
 
@@ -127,22 +134,22 @@ export default function PriceCard({ store, isLowest, index }: PriceCardProps) {
         <div className="mt-1 flex">
           {isLowest ? (
             <a
-              href={store.url || '#'}
+              href={item.url || '#'}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full px-4 py-2.5 rounded-lg bg-accent text-accent-foreground font-semibold text-sm transition-all hover:bg-accent/90 active:scale-95 flex items-center justify-center gap-2 group"
             >
-              <span>Buy on {store.storeName}</span>
+              <span>Buy on {item.storeName}</span>
               <span className="transition-transform group-hover:translate-x-1">→</span>
             </a>
           ) : (
             <a
-              href={store.url || '#'}
+              href={item.url || '#'}
               target="_blank"
               rel="noopener noreferrer"
               className="ml-auto px-4 py-2 rounded-lg border border-border text-foreground/75 font-medium text-sm transition-all hover:bg-muted active:scale-95 flex items-center gap-1.5 group"
             >
-              <span>Buy on {store.storeName}</span>
+              <span>Buy on {item.storeName}</span>
               <span className="transition-transform group-hover:translate-x-1">→</span>
             </a>
           )}

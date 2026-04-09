@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
-import { HEADERS } from '@/lib/scrapers/utils';
+
+const HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-IN,en;q=0.9',
+};
 
 const STORE_PROBES: Record<string, string> = {
   amazon:   'https://www.amazon.in/robots.txt',

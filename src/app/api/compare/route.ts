@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { extractSearchQuery } from '@/lib/providers/extractQuery';
-import { searchGoogleShopping } from '@/lib/providers/googleShopping';
+import { searchGoogleShopping, lookupAsin } from '@/lib/providers/googleShopping';
 import { searchQuickCommerce } from '@/lib/providers/quickCommerce';
 
 const QC_STORES = new Set(['blinkit', 'zepto', 'instamart', 'bigbasket']);
@@ -11,15 +11,24 @@ export async function POST(req: Request) {
     const input = body.url || body.query || '';
 
     if (!input) {
-      return NextResponse.json({ error: 'Please provide a URL or search query' }, { status: 400 });
+      return NextResponse.json({ error: 'Provide a URL or search query' }, { status: 400 });
     }
 
-    // Extract clean search query from URL or plain text
-    const searchQuery = extractSearchQuery(input);
-    console.log(`[Compare API] Input: "${input}"`);
-    console.log(`[Compare API] Extracted query: "${searchQuery}"`);
+    // Step 1: Extract query from input
+    const extraction = extractSearchQuery(input);
+    let searchQuery: string;
 
-    // Search Google Shopping + Quick Commerce in parallel
+    if (extraction.type === 'asin') {
+      console.log(`[Compare] ASIN detected: ${extraction.asin}`);
+      searchQuery = await lookupAsin(extraction.asin);
+      console.log(`[Compare] ASIN → "${searchQuery}"`);
+    } else {
+      searchQuery = extraction.query;
+    }
+
+    console.log(`[Compare] Searching: "${searchQuery}"`);
+
+    // Step 2: Search Google Shopping + Quick Commerce in parallel
     const [shoppingResults, qcResults] = await Promise.allSettled([
       searchGoogleShopping(searchQuery),
       searchQuickCommerce(searchQuery),
@@ -30,7 +39,7 @@ export async function POST(req: Request) {
       ...(qcResults.status === 'fulfilled' ? qcResults.value : []),
     ];
 
-    // Deduplicate: keep cheapest per store
+    // Step 3: Deduplicate — keep cheapest per store
     const byStore = new Map<string, any>();
     for (const item of allResults) {
       if (!item.price || item.price <= 0) continue;
@@ -57,7 +66,7 @@ export async function POST(req: Request) {
       timestamp: new Date().toISOString(),
     };
 
-    console.log(`[Compare API] Returning ${sorted.length} prices from ${sorted.map((p: any) => p.storeName).join(', ')}`);
+    console.log(`[Compare] Returning ${sorted.length} prices from ${sorted.map((p: any) => p.storeName).join(', ')}`);
 
     return NextResponse.json(response);
   } catch (err: any) {
@@ -66,16 +75,17 @@ export async function POST(req: Request) {
   }
 }
 
-// Also support GET for easy testing
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const query = url.searchParams.get('q');
-  if (!query) {
-    return NextResponse.json({ error: 'Add ?q=product+name to test' }, { status: 400 });
+  const q = url.searchParams.get('q');
+  const inputUrl = url.searchParams.get('url');
+  if (!q && !inputUrl) {
+    return NextResponse.json({ error: 'Add ?q=product or ?url=store-link' }, { status: 400 });
   }
+  const body = inputUrl ? { url: inputUrl } : { query: q };
   const fakeReq = new Request(req.url, {
     method: 'POST',
-    body: JSON.stringify({ query }),
+    body: JSON.stringify(body),
     headers: { 'Content-Type': 'application/json' },
   });
   return POST(fakeReq);

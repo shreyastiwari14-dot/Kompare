@@ -8,6 +8,7 @@ import type { ShoppingResult } from "@/lib/providers/googleShopping";
 import PriceCard from "@/components/compare/PriceCard";
 import AlertBox from "@/components/compare/AlertBox";
 import Breadcrumb from "@/components/ui/Breadcrumb";
+import LocationPill, { useLocation, type UserLocation } from "@/components/ui/LocationPill";
 
 // ── Loading skeleton ──────────────────────────────────────────────────────────
 function PricingSkeleton({ message }: { message?: string }) {
@@ -162,7 +163,7 @@ function SearchAgainBar() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 mb-8">
+    <form onSubmit={handleSubmit} className="flex gap-2 w-full">
       <div className="relative flex-1">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
@@ -220,6 +221,8 @@ export default function ComparePageContent() {
   const qParam   = searchParams.get("q")   ?? "";
   const input = urlParam || qParam;
 
+  const { location, setLocation } = useLocation();
+
   const [sortBy, setSortBy] = useState<SortKey>("price");
   const [product, setProduct]           = useState<{ name: string; image?: string | null } | null>(null);
   const [ecommerce, setEcommerce]       = useState<ShoppingResult[]>([]);
@@ -228,12 +231,15 @@ export default function ComparePageContent() {
   const [isLoading, setIsLoading]       = useState(true);
   const [error, setError]               = useState<string | null>(null);
 
-  const fetchPrices = useCallback(async (raw: string) => {
+  const fetchPrices = useCallback(async (raw: string, loc?: UserLocation | null) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const payload = raw.startsWith("http") ? { url: raw } : { query: raw };
+      const payload = {
+        ...(raw.startsWith("http") ? { url: raw } : { query: raw }),
+        ...(loc ? { lat: loc.lat, lng: loc.lng, city: loc.city, pincode: loc.pincode } : {}),
+      };
       const res  = await fetch("/api/compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -257,8 +263,9 @@ export default function ComparePageContent() {
   }, []);
 
   useEffect(() => {
-    if (input) fetchPrices(input);
+    if (input) fetchPrices(input, location);
     else setIsLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, fetchPrices]);
 
   // ── Loading ─────────────────────────────────────────────────────────────
@@ -331,8 +338,14 @@ export default function ComparePageContent() {
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
-        {/* Search again bar */}
-        <SearchAgainBar />
+        {/* Search again bar + location pill */}
+        <div className="flex items-center gap-3 mb-2 flex-wrap">
+          <div className="flex-1"><SearchAgainBar /></div>
+          <LocationPill onLocationChange={(loc) => {
+            setLocation(loc);
+            if (input) fetchPrices(input, loc);
+          }} />
+        </div>
 
         {/* Breadcrumb */}
         <Breadcrumb items={[

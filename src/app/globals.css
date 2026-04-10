@@ -65,8 +65,12 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
 }
@@ -75,6 +79,15 @@ body {
   background: var(--background);
   color: var(--foreground);
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Targeted theme transitions — only on elements that change with theme */
+body,
+.bg-card,
+.bg-background,
+.bg-muted,
+.border-border {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 /* Scrollbar styling */
@@ -103,14 +116,9 @@ body {
   scrollbar-width: thin;
 }
 
-/* Smooth transitions for theme */
-* {
-  @apply transition-colors duration-300;
-}
-
 /* Disable transitions during theme change to prevent flashing */
 html.transition-off * {
-  @apply transition-none;
+  transition: none !important;
 }
 
 /* Tabular numbers for prices */

@@ -10,6 +10,53 @@ export interface ShoppingResult {
   delivery: string | null;
 }
 
+// ── Direct URL extraction ─────────────────────────────────────────────────────
+function buildStoreSearchUrl(storeName: string, query: string): string {
+  const q = encodeURIComponent(query);
+  const s = storeName.toLowerCase();
+  if (s.includes('amazon')) return `https://www.amazon.in/s?k=${q}`;
+  if (s.includes('flipkart')) return `https://www.flipkart.com/search?q=${q}`;
+  if (s.includes('croma')) return `https://www.croma.com/searchB?q=${q}`;
+  if (s.includes('reliance')) return `https://www.reliancedigital.in/search?q=${q}`;
+  if (s.includes('vijay')) return `https://www.vijaysales.com/search/${q}`;
+  if (s.includes('tata') || s.includes('cliq')) return `https://www.tatacliq.com/search/?searchCategory=all&text=${q}`;
+  if (s.includes('myntra')) return `https://www.myntra.com/${q.replace(/%20/g, '-')}`;
+  if (s.includes('ajio')) return `https://www.ajio.com/search/?text=${q}`;
+  if (s.includes('nykaa')) return `https://www.nykaa.com/search/result/?q=${q}`;
+  if (s.includes('samsung')) return `https://www.samsung.com/in/search/?searchvalue=${q}`;
+  if (s.includes('apple')) return `https://www.apple.com/in/shop/buy-iphone`;
+  if (s.includes('jiomart')) return `https://www.jiomart.com/search/${q}`;
+  if (s.includes('blinkit')) return `https://blinkit.com/s/?q=${q}`;
+  if (s.includes('zepto')) return `https://www.zeptonow.com/search?query=${q}`;
+  if (s.includes('swiggy') || s.includes('instamart')) return `https://www.swiggy.com/instamart`;
+  if (s.includes('bigbasket')) return `https://www.bigbasket.com/ps/?q=${q}`;
+  return `https://www.google.com/search?q=${q}+${encodeURIComponent(storeName)}`;
+}
+
+function extractDirectUrl(rawUrl: string, storeName: string, query: string): string {
+  if (!rawUrl || rawUrl === '#') return buildStoreSearchUrl(storeName, query);
+
+  // Already a direct store URL (not google) — use it
+  if (!rawUrl.includes('google.com')) return rawUrl;
+
+  try {
+    const parsed = new URL(rawUrl);
+
+    // Google redirect URL format: google.com/url?q=https://store.com/...
+    // The `q` param here IS the destination, but only if it looks like a full URL
+    if (parsed.pathname === '/url') {
+      const dest = parsed.searchParams.get('q') || parsed.searchParams.get('url') || parsed.searchParams.get('adurl');
+      if (dest && dest.startsWith('http') && !dest.includes('google.com')) return dest;
+    }
+
+    // Google Shopping product page (google.com/search?ibp=oshop...) — not a redirect
+    // These have ?q=product-name (the search term), NOT a destination URL
+    // Fall through to store search URL
+  } catch {}
+
+  return buildStoreSearchUrl(storeName, query);
+}
+
 // ── Accessory filter ──────────────────────────────────────────────────────────
 const ACCESSORY_WORDS = [
   'case', 'cover', 'skin', 'wrap', 'screen guard', 'screen protector',
@@ -46,22 +93,16 @@ function estimatePriceRange(q: string): { min: number; max: number } | null {
 
 function filterResults(results: any[], query: string): any[] {
   const isDeviceSearch = /\b(iphone|samsung|galaxy|vivo|oneplus|xiaomi|redmi|realme|oppo|nothing|pixel|motorola|nokia|sony|lg|hp|dell|lenovo|asus|acer|macbook|ipad|airpods|headphone|earbuds|tv|television|laptop|tablet|watch|smartwatch)\b/i.test(query);
-
-  if (!isDeviceSearch) return results; // Don't filter grocery/fashion searches
+  if (!isDeviceSearch) return results;
 
   const priceRange = estimatePriceRange(query);
 
   return results.filter(item => {
     const title = (item.title || '').toLowerCase();
     const price = item.extracted_price;
-
-    // Remove accessories
     if (ACCESSORY_WORDS.some(word => title.includes(word))) return false;
-
-    // Remove if price is way outside expected range
     if (priceRange && price < priceRange.min * 0.3) return false;
     if (priceRange && price > priceRange.max * 3) return false;
-
     return true;
   });
 }
@@ -85,7 +126,7 @@ function normalizeStoreName(source: string): string {
 }
 
 // ── Main search ───────────────────────────────────────────────────────────────
-export async function searchGoogleShopping(query: string): Promise<ShoppingResult[]> {
+export async function searchGoogleShopping(query: string, city?: string): Promise<ShoppingResult[]> {
   const apiKey = process.env.SERPAPI_KEY || '2ebbc2949510ba8a94ce7b81ff3006d7ea690d9f080786d33d68b250c361864d';
 
   const params = new URLSearchParams({
@@ -93,12 +134,12 @@ export async function searchGoogleShopping(query: string): Promise<ShoppingResul
     q: query,
     gl: 'in',
     hl: 'en',
-    location: 'India',
+    location: city ? `${city}, India` : 'India',
     api_key: apiKey,
     num: '20',
   });
 
-  console.log(`[SerpAPI] Searching: "${query}"`);
+  console.log(`[SerpAPI] Searching: "${query}" (location: ${city || 'India'})`);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
@@ -135,7 +176,7 @@ export async function searchGoogleShopping(query: string): Promise<ShoppingResul
         price: item.extracted_price,
         store: normalizeStoreName(item.source || ''),
         storeName: item.source || 'Unknown Store',
-        url: item.link || item.product_link || '#',
+        url: extractDirectUrl(item.product_link || item.link || '', item.source || '', query),
         image: item.thumbnail || null,
         rating: item.rating || null,
         reviews: item.reviews || null,

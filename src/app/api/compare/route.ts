@@ -9,6 +9,9 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const input = body.url || body.query || '';
+    const lat: number | undefined = body.lat;
+    const lng: number | undefined = body.lng;
+    const city: string | undefined = body.city;
 
     if (!input) {
       return NextResponse.json({ error: 'Provide a URL or search query' }, { status: 400 });
@@ -26,12 +29,12 @@ export async function POST(req: Request) {
       searchQuery = extraction.query;
     }
 
-    console.log(`[Compare] Searching: "${searchQuery}"`);
+    console.log(`[Compare] Searching: "${searchQuery}" city="${city || 'India'}"`);
 
     // Step 2: Search Google Shopping + Quick Commerce in parallel
     const [shoppingResults, qcResults] = await Promise.allSettled([
-      searchGoogleShopping(searchQuery),
-      searchQuickCommerce(searchQuery),
+      searchGoogleShopping(searchQuery, city),
+      searchQuickCommerce(searchQuery, lat, lng),
     ]);
 
     const allResults = [
@@ -66,8 +69,7 @@ export async function POST(req: Request) {
       timestamp: new Date().toISOString(),
     };
 
-    console.log(`[Compare] Returning ${sorted.length} prices from ${sorted.map((p: any) => p.storeName).join(', ')}`);
-
+    console.log(`[Compare] Returning ${sorted.length} prices`);
     return NextResponse.json(response);
   } catch (err: any) {
     console.error('[Compare API] Error:', err);
